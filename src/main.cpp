@@ -18,6 +18,7 @@ GyverPortal ui;
 AsyncUDP udp;
 const uint16_t port = 12345; // Определяем порт
 
+
 #define ESP32_WIFIAP // закомментировать если нужно  подключаться к существующей wifi
 #ifdef ESP32_WIFIAP
 bool wifiHidden = WIFI_IS_HIDDEN;
