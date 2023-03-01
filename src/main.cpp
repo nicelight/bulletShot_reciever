@@ -257,7 +257,6 @@ void makePhoto() {
   if (afterSensorTime > 50) afterSensorTime -= 50;
   delay(afterSensorTime);
   digitalWrite(FOCUS, 1);
-  digitalWrite(FOCUS, 1);
   delay(50);
   digitalWrite(SHOOTER, 1);
   digitalWrite(PHOTOFLASH1, 1);
