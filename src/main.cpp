@@ -6,6 +6,14 @@
 #define MAX_CONNECTION 4                   // макимальное количество подключений 1..8
 //#define TELEGRAM
 
+#define PHOTOFLASH1 26 //white 
+#define PHOTOFLASH2 25 // green
+#define FOCUS 33 // red
+#define SHOOTER 32 //black
+
+
+
+
 // Подключем библиотеки
 #include <WiFi.h>
 #include <WiFiAP.h>
@@ -36,11 +44,14 @@ const char* password = "newgeneration";
 
 #define LED_PIN 2 // esp32 dev module LED_BUILTIN
 bool ledState = LOW;
-uint8_t state  = 0; // автомат состояний 
+uint8_t state = 0; // автомат состояний 
 bool sensor = 0;
 uint32_t ms = 0, prevMs = 0, stateMs = 0, sec = 1;
 GPtime upd_UpTime;
 uint8_t uptimeHour = 0, uptimeMin = 0, uptimeSec = 0;
+
+  uint16_t shooterTime = 200;
+  uint16_t afterSensorTime = 200;
 
 
 // Мигаем, если данные пришли
@@ -242,24 +253,20 @@ void parseUdpMessage() {
 }//parseUdpMessage()
 
 
-void makePhoto(){
-
-  #define FOCUS1 10
-  #define FOCUS2 10
-  #define SHOOTER 10 
-  uint16_t shooterTime = 200;
-  uint16_t afterSensorTime = 200;
-  
-  if(afterSensorTime>50) afterSensorTime -= 50;
+void makePhoto() {
+  if (afterSensorTime > 50) afterSensorTime -= 50;
   delay(afterSensorTime);
-  digitalWrite(FOCUS1, 1);
-  digitalWrite(FOCUS1, 1);
+  digitalWrite(FOCUS, 1);
+  digitalWrite(FOCUS, 1);
   delay(50);
   digitalWrite(SHOOTER, 1);
+  digitalWrite(PHOTOFLASH1, 1);
+  digitalWrite(PHOTOFLASH2, 1);
   delay(shooterTime);
-  digitalWrite(FOCUS1, 0);
-  digitalWrite(FOCUS1, 0);
+  digitalWrite(FOCUS, 0);
   digitalWrite(SHOOTER, 0);
+  digitalWrite(PHOTOFLASH1, 0);
+  digitalWrite(PHOTOFLASH2, 0);
 }// makePhoto()
 
 
@@ -269,7 +276,15 @@ void setup() {
   Serial.println("\n\nbulletShot_reciever\n\n");
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, ledState);
-
+  pinMode(PHOTOFLASH1, OUTPUT);
+  pinMode(PHOTOFLASH2, OUTPUT);
+  pinMode(FOCUS, OUTPUT);
+  pinMode(SHOOTER, OUTPUT);
+  digitalWrite(PHOTOFLASH1, 0);
+  digitalWrite(PHOTOFLASH2, 0);
+  digitalWrite(FOCUS, 0);
+  digitalWrite(SHOOTER, 0);
+  
   wifiInit();
 #ifdef TELEGRAM
   tgBot_Init();
@@ -292,7 +307,7 @@ void loop() {
     state = 1;
     break;
   case 1:
-    if (sensor){
+    if (sensor) {
       makePhoto(); // фотографируем 
       digitalWrite(LED_PIN, 1);
       Serial.printf("\t%lu:%lu .%lu \t sensor => shoot\n", uptimeHour, uptimeMin, uptimeSec);
