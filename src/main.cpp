@@ -243,7 +243,7 @@ void parseUdpMessage() {
 
 
 void makePhoto(){
-/* 
+
   #define FOCUS1 10
   #define FOCUS2 10
   #define SHOOTER 10 
@@ -260,7 +260,6 @@ void makePhoto(){
   digitalWrite(FOCUS1, 0);
   digitalWrite(FOCUS1, 0);
   digitalWrite(SHOOTER, 0);
- */  
 }// makePhoto()
 
 
