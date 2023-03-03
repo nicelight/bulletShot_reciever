@@ -18,6 +18,10 @@
 #include <WiFi.h>
 #include <WiFiAP.h>
 #include <WiFiClient.h>
+
+#include <EEPROM.h>
+#include <EEManager.h>
+
 #include <GyverPortal.h>
 GyverPortal ui;
 
@@ -49,9 +53,21 @@ bool sensor = 0;
 uint32_t ms = 0, prevMs = 0, stateMs = 0, sec = 1;
 GPtime upd_UpTime;
 uint8_t uptimeHour = 0, uptimeMin = 0, uptimeSec = 0;
+uint16_t totalPhotos = 0;
+// структура настроек
+struct Settings {
+  uint16_t shooterTime;
+  uint16_t afterSensorTime;
+  uint16_t sld;
+  char str[20];
+};
 
-  uint16_t shooterTime = 200;
-  uint16_t afterSensorTime = 200;
+Settings set; // инициализация структуры типа mem
+
+EEManager memory(set); // инициализация памяти
+
+uint16_t shooterTime = 200;
+uint16_t afterSensorTime = 200;
 
 
 // Мигаем, если данные пришли
@@ -74,12 +90,13 @@ void webPageBuild() {
   GP.TITLE("ESP32 photo catch");
   GP.HR();
 
-  GP.LABEL("Посл раз:");
+  GP.LABEL("Всего:");
   GP.LABEL("NAN", "label1");
-  GP.LABEL("сек назад");
+  GP.LABEL("фоток");
   GP.BREAK();
-  GP.LABEL("Пропущено пакетов:");
+  GP.LABEL("Сфоткал");
   GP.LABEL("NAN", "label2");
+  GP.LABEL("сек назад");
   GP.BREAK();
   GP.LABEL("Аптайм:");
   GP.LABEL("hh", "hh");
@@ -88,6 +105,21 @@ void webPageBuild() {
   GP.LABEL("м");
   GP.LABEL("ss", "ss");
   GP.BREAK();
+  GP.HR();
+  //GP.SLIDER("sld", set.sld);
+  //GP.BREAK();
+  //GP.TEXT("txt", "", set.str);
+
+  GP.LABEL("Пауза после датчика");
+  GP.NUMBER("uiPhotoGap", "number", set.afterSensorTime); GP.BREAK();
+  GP.LABEL("в милисекундах");
+  GP.BREAK();
+  GP.HR();
+  GP.LABEL("удержание затвора");
+  GP.NUMBER("uiShooterTime", "number", set.shooterTime); GP.BREAK();
+  GP.LABEL("в милисекундах");
+  GP.BREAK();
+  GP.HR();
 
   /* examples
 
@@ -135,13 +167,31 @@ void webPageBuild() {
 void webPageAction() {
 
   if (ui.update()) {
-    // ui.updateTime("time", upd_UpTime);
-    ui.updateInt("label1", sec);
-    ui.updateInt("label2", ms);
+    ui.updateInt("label1", totalPhotos);
+    ui.updateInt("label2", sec);
     ui.updateInt("hh", uptimeHour);
     ui.updateInt("mm", uptimeMin);
     ui.updateInt("ss", uptimeSec);
-  }
+  }//update()
+  if (ui.click()) {
+    Serial.println("UI CLICK. \t mem updating");
+    // по клику переписать пришедшие данные в переменные
+    // ui.clickInt("sld", set.sld);
+    // ui.clickStr("txt", set.str);
+    // перезапишем в shooterTime что ввели в интерфейсе
+    if (ui.clickInt("uiPhotoGap", set.afterSensorTime)) {
+      Serial.print("set.afterSensorTime: ");
+      Serial.println(shooterTime);
+    }
+    if (ui.clickInt("uiShooterTime", set.shooterTime)) {
+      Serial.print("set.shooterTime: ");
+      Serial.println(set.shooterTime);
+    }
+
+    // запланировать обновление настроек в памяти
+    memory.update();
+
+  }//click()
 }//webPageAction()
 
 
@@ -253,15 +303,19 @@ void parseUdpMessage() {
 }//parseUdpMessage()
 
 
-void makePhoto() {
+void makePhoto() { 
+  // чтобы изменить безболезненно, перекладываем значение в другую переменную
+  afterSensorTime = set.afterSensorTime;
   if (afterSensorTime > 50) afterSensorTime -= 50;
   delay(afterSensorTime);
+  digitalWrite(LED_PIN, 0); //  тушим на 50 мс чтобы было понятно что фотка пошла
   digitalWrite(FOCUS, 1);
   delay(50);
+  digitalWrite(LED_PIN, 1); // восстанавливаем
   digitalWrite(SHOOTER, 1);
   digitalWrite(PHOTOFLASH1, 1);
   digitalWrite(PHOTOFLASH2, 1);
-  delay(shooterTime);
+  delay(set.shooterTime);
   digitalWrite(FOCUS, 0);
   digitalWrite(SHOOTER, 0);
   digitalWrite(PHOTOFLASH1, 0);
@@ -269,12 +323,9 @@ void makePhoto() {
 }// makePhoto()
 
 
-void setup() {
-  // Инициируем последовательный порт
-  Serial.begin(115200);
-  Serial.println("\n\nbulletShot_reciever\n\n");
+void pinsBegin() {
   pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, ledState);
+  digitalWrite(LED_PIN, 0);
   pinMode(PHOTOFLASH1, OUTPUT);
   pinMode(PHOTOFLASH2, OUTPUT);
   pinMode(FOCUS, OUTPUT);
@@ -283,21 +334,30 @@ void setup() {
   digitalWrite(PHOTOFLASH2, 0);
   digitalWrite(FOCUS, 0);
   digitalWrite(SHOOTER, 0);
-  
+}  //pinsBegin()
+
+
+void setup() {
+  // Инициируем последовательный порт
+  Serial.begin(115200);
+  Serial.println("\n\nbulletShot_reciever\n\n");
+  EEPROM.begin(100);  // выделить память (больше или равно размеру даты)
+  memory.begin(0, 'a');
+
+  pinsBegin();
   wifiInit();
 #ifdef TELEGRAM
   tgBot_Init();
 #endif
   parseUdpMessage(); // слушаем входящие по udp 
-
   webUI_Init();
-
+  makePhoto(); // тестовая фотка 
 } // setup
 
 void loop() {
   ui.tick();
+  memory.tick();
   ms = millis();
-  // digitalWrite(LED_PIN, ledState);
   parseUdpMessage();// ф-я вернет 1, если пришло по udp  значение "1"
 
   //автомат:  ловим единичку, фоткаем, отдыхаем 3 сек
@@ -307,8 +367,11 @@ void loop() {
     break;
   case 1:
     if (sensor) {
-      makePhoto(); // фотографируем 
       digitalWrite(LED_PIN, 1);
+      makePhoto(); // фотографируем 
+      totalPhotos++;
+      sec = 0; // обнуляем инфо-таймер последней фотки
+
       Serial.printf("\t%lu:%lu .%lu \t sensor => shoot\n", uptimeHour, uptimeMin, uptimeSec);
       stateMs = ms;
       state = 5;
@@ -330,6 +393,8 @@ void loop() {
     prevMs = ms;
     sec++;
     uptimeSec++;
+    //Serial.print("state:");
+    //Serial.println(state);
     if (uptimeSec > 59) {
       uptimeSec = 0;
       uptimeMin++;
