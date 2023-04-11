@@ -59,15 +59,13 @@ struct Settings {
   uint16_t shooterTime;
   uint16_t afterSensorTime;
   uint16_t sld;
+  uint16_t beforeFlashDel;
   char str[20];
 };
 
 Settings set; // инициализация структуры типа mem
 
 EEManager memory(set); // инициализация памяти
-
-uint16_t shooterTime = 200;
-uint16_t afterSensorTime = 200;
 
 
 // Мигаем, если данные пришли
@@ -115,7 +113,12 @@ void webPageBuild() {
   GP.LABEL("в милисекундах");
   GP.BREAK();
   GP.HR();
-  GP.LABEL("удержание затвора");
+  GP.LABEL("Задержка вспышки ");
+  GP.NUMBER("uiFlashDel", "number", set.beforeFlashDel); GP.BREAK();
+  GP.LABEL("в милисекундах");
+  GP.BREAK();
+  GP.HR();
+  GP.LABEL("Удержание затвора");
   GP.NUMBER("uiShooterTime", "number", set.shooterTime); GP.BREAK();
   GP.LABEL("в милисекундах");
   GP.BREAK();
@@ -181,16 +184,19 @@ void webPageAction() {
     // перезапишем в shooterTime что ввели в интерфейсе
     if (ui.clickInt("uiPhotoGap", set.afterSensorTime)) {
       Serial.print("set.afterSensorTime: ");
-      Serial.println(shooterTime);
+      Serial.println(set.shooterTime);
+      memory.update(); //обновление настроек в EEPROM памяти
+    }
+    if (ui.clickInt("uiFlashDel", set.beforeFlashDel)) {
+      Serial.print("set.beforeFlashDel: ");
+      Serial.println(set.beforeFlashDel);
+      memory.update(); //обновление настроек в EEPROM памяти
     }
     if (ui.clickInt("uiShooterTime", set.shooterTime)) {
       Serial.print("set.shooterTime: ");
       Serial.println(set.shooterTime);
+      memory.update(); //обновление настроек в EEPROM памяти
     }
-
-    // запланировать обновление настроек в памяти
-    memory.update();
-
   }//click()
 }//webPageAction()
 
@@ -305,17 +311,20 @@ void parseUdpMessage() {
 
 void makePhoto() { 
   // чтобы изменить безболезненно, перекладываем значение в другую переменную
-  afterSensorTime = set.afterSensorTime;
+  uint16_t afterSensorTime = set.afterSensorTime;
   if (afterSensorTime > 50) afterSensorTime -= 50;
   delay(afterSensorTime);
   digitalWrite(LED_PIN, 0); //  тушим на 50 мс чтобы было понятно что фотка пошла
   digitalWrite(FOCUS, 1);
-  delay(50);
-  digitalWrite(LED_PIN, 1); // восстанавливаем
-  digitalWrite(SHOOTER, 1);
-  digitalWrite(PHOTOFLASH1, 1);
+  delay(50); // после фокусировки задержка
+  // сигнал на вспышку
+  digitalWrite(PHOTOFLASH1, 1); 
   digitalWrite(PHOTOFLASH2, 1);
+  delay(set.beforeFlashDel); // задержка после вспышки, перед шутером
+  digitalWrite(LED_PIN, 1); // восстанавливаем сигнальный светодиод
+  digitalWrite(SHOOTER, 1); // ФОТОГРАФИРУЕМ
   delay(set.shooterTime);
+
   digitalWrite(FOCUS, 0);
   digitalWrite(SHOOTER, 0);
   digitalWrite(PHOTOFLASH1, 0);
