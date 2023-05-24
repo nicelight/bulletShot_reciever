@@ -59,7 +59,7 @@ struct Settings {
   uint16_t shooterTime;
   uint16_t afterSensorTime;
   uint16_t sld;
-  uint16_t beforeFlashDel;
+  uint16_t afterFlashDel;
   char str[20];
 };
 
@@ -74,7 +74,31 @@ void ledBlink() {
   delay(40);
   digitalWrite(LED_PIN, 0);
   delay(40);
-}
+}//ledBlink()
+
+
+
+void makePhoto() { 
+  // чтобы изменить безболезненно, перекладываем значение в другую переменную
+  uint16_t afterSensorTime = set.afterSensorTime;
+  if (afterSensorTime > 50) afterSensorTime -= 50;
+  delay(afterSensorTime);
+  digitalWrite(LED_PIN, 0); //  тушим на 50 мс чтобы было понятно что фотка пошла
+  digitalWrite(FOCUS, 1);
+  delay(50); // после фокусировки задержка
+  digitalWrite(LED_PIN, 1); // восстанавливаем сигнальный светодиод
+  digitalWrite(SHOOTER, 1); // ФОТОГРАФИРУЕМ
+  delay(set.afterFlashDel); // задержка вспышки после шутера
+  digitalWrite(PHOTOFLASH1, 1);  // сигнал на вспышку
+  digitalWrite(PHOTOFLASH2, 1);
+  delay(set.shooterTime); // задержка удержания затвора
+
+  digitalWrite(FOCUS, 0);
+  digitalWrite(SHOOTER, 0);
+  digitalWrite(PHOTOFLASH1, 0);
+  digitalWrite(PHOTOFLASH2, 0);
+}// makePhoto()
+
 
 
 // страницу web портала строим
@@ -87,7 +111,7 @@ void webPageBuild() {
   // обновление случайным числом
   GP.TITLE("ESP32 photo catch");
   GP.HR();
-
+  GP.BUTTON("btn", "Shot");
   GP.LABEL("Всего:");
   GP.LABEL("NAN", "label1");
   GP.LABEL("фоток");
@@ -108,14 +132,14 @@ void webPageBuild() {
   //GP.BREAK();
   //GP.TEXT("txt", "", set.str);
 
-  GP.LABEL("Пауза после датчика");
+  GP.LABEL("Задержка датчика");
   GP.NUMBER("uiPhotoGap", "number", set.afterSensorTime); GP.BREAK();
-  GP.LABEL("в милисекундах");
+  GP.LABEL(" мс");
   GP.BREAK();
   GP.HR();
   GP.LABEL("Задержка вспышки ");
-  GP.NUMBER("uiFlashDel", "number", set.beforeFlashDel); GP.BREAK();
-  GP.LABEL("в милисекундах");
+  GP.NUMBER("uiFlashDel", "number", set.afterFlashDel); GP.BREAK();
+  GP.LABEL(" мс");
   GP.BREAK();
   GP.HR();
   GP.LABEL("Удержание затвора");
@@ -177,19 +201,18 @@ void webPageAction() {
     ui.updateInt("ss", uptimeSec);
   }//update()
   if (ui.click()) {
-    Serial.println("UI CLICK. \t mem updating");
-    // по клику переписать пришедшие данные в переменные
-    // ui.clickInt("sld", set.sld);
-    // ui.clickStr("txt", set.str);
+    Serial.println("UI CLICK detected");
+    // по нажатию на кнопку сфотографируем
+    if (ui.click("btn")) makePhoto();
     // перезапишем в shooterTime что ввели в интерфейсе
     if (ui.clickInt("uiPhotoGap", set.afterSensorTime)) {
       Serial.print("set.afterSensorTime: ");
       Serial.println(set.shooterTime);
       memory.update(); //обновление настроек в EEPROM памяти
     }
-    if (ui.clickInt("uiFlashDel", set.beforeFlashDel)) {
-      Serial.print("set.beforeFlashDel: ");
-      Serial.println(set.beforeFlashDel);
+    if (ui.clickInt("uiFlashDel", set.afterFlashDel)) {
+      Serial.print("set.afterFlashDel: ");
+      Serial.println(set.afterFlashDel);
       memory.update(); //обновление настроек в EEPROM памяти
     }
     if (ui.clickInt("uiShooterTime", set.shooterTime)) {
@@ -307,29 +330,6 @@ void parseUdpMessage() {
       });
   }//udp.listen()
 }//parseUdpMessage()
-
-
-void makePhoto() { 
-  // чтобы изменить безболезненно, перекладываем значение в другую переменную
-  uint16_t afterSensorTime = set.afterSensorTime;
-  if (afterSensorTime > 50) afterSensorTime -= 50;
-  delay(afterSensorTime);
-  digitalWrite(LED_PIN, 0); //  тушим на 50 мс чтобы было понятно что фотка пошла
-  digitalWrite(FOCUS, 1);
-  delay(50); // после фокусировки задержка
-  // сигнал на вспышку
-  digitalWrite(PHOTOFLASH1, 1); 
-  digitalWrite(PHOTOFLASH2, 1);
-  delay(set.beforeFlashDel); // задержка после вспышки, перед шутером
-  digitalWrite(LED_PIN, 1); // восстанавливаем сигнальный светодиод
-  digitalWrite(SHOOTER, 1); // ФОТОГРАФИРУЕМ
-  delay(set.shooterTime);
-
-  digitalWrite(FOCUS, 0);
-  digitalWrite(SHOOTER, 0);
-  digitalWrite(PHOTOFLASH1, 0);
-  digitalWrite(PHOTOFLASH2, 0);
-}// makePhoto()
 
 
 void pinsBegin() {
