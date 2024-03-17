@@ -36,8 +36,7 @@ const uint16_t port = 12345; // Определяем порт
 bool wifiHidden = WIFI_IS_HIDDEN;
 byte maxConnection = MAX_CONNECTION;
 bool wifiChanel = CHANNEL;
-const char* ssidAP = "esp32";
-// const char* ssidAP = "esp32";
+const char* ssidAP = "esp32-1";
 const char* passwordAP = "1234567812345678"; // пароль от 1 до 8 два раза
 #else
 // если не точка, то wifi client 
